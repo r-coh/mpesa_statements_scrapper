@@ -1,6 +1,8 @@
 # StatementsReader
 
-**TODO: Add description**
+Extract transactions from Mpesa Statement pdfs.
+Extract to sql_tables, ets tables, csv.
+Synthesis for preset metadata.
 
 ## Installation
 
@@ -18,4 +20,3 @@ end
 Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
 and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
 be found at [https://hexdocs.pm/statements_reader](https://hexdocs.pm/statements_reader).
-
