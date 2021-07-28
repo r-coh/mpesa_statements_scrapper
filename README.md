@@ -30,6 +30,7 @@ To extract mpesa statements
 2. Run the executable issuing password and path to the folder with mpesa statements
    `xpesa_parser <path to folder> -p password -o <path to output folder>`
 3. The output folder will contain the extracted transactions, in json format(default) or in an SQL if specified with `--sql` option while riunning the executable.
+   `xpesa_parser --help` will show the available options.
 
 ## Installation
 
