@@ -40,8 +40,9 @@ defmodule StatementsReader.CLI do
     params
     |> OptionParser.parse(opts)
     |> case do
-      {[help: true], _, _} -> :help
       {opts, [path], _} -> {:process, Keyword.put(opts, :src, path)}
+      {[help: true], _, _} -> :help
+      _ -> :help
     end
   end
 
@@ -51,7 +52,7 @@ defmodule StatementsReader.CLI do
   @spec process(Atom.t()) :: String.t() | {:error, String.t()}
   def process({option}) do
     IO.puts("""
-    SCRY
+    EXTRACT MPESA STATEMENTS
     ------
     Invalid options, use --help to view usage.
            got: #{inspect(option, pretty: true)}
@@ -61,7 +62,7 @@ defmodule StatementsReader.CLI do
 
   def process(:help) do
     IO.puts("""
-    SCRY
+    EXPORT MPESA STATEMENTS TO JSON or SQL
     -------------------------------------------
     Syntax
       `xpesa_parser /path/to/mpesa/statements --password pdf_password [--json, --sql] [--output /path/to/output/dir]`
@@ -99,8 +100,18 @@ defmodule StatementsReader.CLI do
           |> Enum.map(fn {m, f, a} -> Task.async(m, f, a) end)
           |> Task.yield_many()
           |> Enum.map(fn {task, res} -> res || Task.shutdown(task, :brutal_kill) end)
-          |> Enum.map(fn {_return, res} -> res end)
-          |> (&{:ok, &1}).()
+          |> Enum.map(fn {_return, {_, res}} -> res end)
         end).()
+    |> (fn paths ->
+          """
+          EXPORTED MPESA STATEMENTS
+          -------------------------------------------
+          Results at
+              #{Enum.join(paths, "\n")}
+
+          -------------------------------------------
+          """
+        end).()
+    |> IO.puts()
   end
 end
