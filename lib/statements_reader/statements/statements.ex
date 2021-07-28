@@ -2,7 +2,7 @@ defmodule StatementsReader.Statements do
   alias StatementsReader.Statement
   alias StatementsReader.Utils
 
-  @password System.get_env("PDF_STATEMENT_PASSWORD", "password")
+  @password System.get_env("PDF_STATEMENT_PASSWORD", "29960718")
 
   def read_statement(path) do
     read_pdf = fn ->

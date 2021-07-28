@@ -4,9 +4,7 @@ defmodule StatementsReader.Utils do
 
   defp log_return(any, acc \\ nil) do
     Logger.error(
-      "[Error] matching, encountered line: \n\tGot: #{inspect(any, pretty: true)}\n\n\tAcc: #{
-        inspect(acc, pretty: true)
-      }"
+      "[Error] matching, encountered line: \n\tGot: #{inspect(any, pretty: true)}\n\n\tAcc: #{inspect(acc, pretty: true)}"
     )
 
     acc
@@ -60,7 +58,7 @@ defmodule StatementsReader.Utils do
 
   def parse_statement_details_record(data) do
     pattern =
-      ~r/(\b[A-Z0-9]{10})\s(\d{4}\-\d{2}\-\d{2}\s\d{2}:\d{2}:\d{2})\s([A-Za-z0-9\s-].+)\s([Completed].+?)([0-9-,.]+)\s([0-9-,.]+)/
+      ~r/(\b[A-Z0-9]{10})\s(\d{4}\-\d{2}\-\d{2}\s\d{2}:\d{2}:\d{2})\s([A-Za-z0-9\s-].+)\s([Completed].+?)\s([0-9-,.]+)\s([0-9-,.]+)/
 
     parse = fn line ->
       pattern
@@ -119,10 +117,23 @@ defmodule StatementsReader.Utils do
         acc
     end
 
+    fix_incomplete_txs = fn data ->
+      data
+      |> Enum.reduce([], fn i, acc ->
+        n = i |> String.split(" ") |> length()
+
+        cond do
+          n > 5 -> acc ++ [i]
+          true -> (acc -- [List.last(acc)]) ++ ["#{List.last(acc)} #{i}"]
+        end
+      end)
+    end
+
     data
     |> Enum.map(&check_head.(&1))
     |> disclaimer?.()
     |> Enum.reduce([], &fix.(&1, &2))
+    |> fix_incomplete_txs.()
   end
 
   def fix_withdrawals({_, _, _, _, "-" <> wd, bal} = rec) do
@@ -178,7 +189,7 @@ defmodule StatementsReader.Utils do
     end
 
     type = fn line ->
-      ~r/(Payment)|\s(Purchase)|(Buy)|(Transfer)\sto|\b\s(Withdrawal)|(Deposit)|(received)|\s(Charge)|(Send).+!Charge|(Pay\sBill\s)Online|(Transfer)\sof\sfunds\sto|(Pay\sBill)\s[a-z]|\s(Reversal)\s/
+      ~r/(Payment)|\s(Purchase)|(Buy)|(Transfer)\sto|\b\s(Withdrawal)|(Deposit)|(received)|\s(Charge)|(Send).+!Charge|(Pay\sBill\s)Online|(Transfer)\sof\sfunds\sto|(Pay\sBill)\s[a-z]|\s(Reversal)\s|(OverDraft)\s|(Fuliza)\s|(Shwari)\s|(Loan\sRepayment)\s/
       |> Regex.run(line)
       |> case do
         [_ | type] ->
@@ -242,9 +253,6 @@ defmodule StatementsReader.Utils do
         |> Regex.run(line)
         |> (fn [_, _, start, fin] -> [{:start_date, start}, {:end_date, fin}] end).()
 
-      nil ->
-        raise("failed to parse: #{line}, result: nil")
-
       true ->
         raise("failed to parse: #{line}")
     end
@@ -272,7 +280,7 @@ defmodule StatementsReader.Utils do
         |> Enum.map(&(path <> "/" <> &1))
 
       {err, err_code} ->
-        raise("Faileed to filter files, encountered: code #{err_code}, \nError: #{err}")
+        raise("Failed to filter files, encountered: code #{err_code}, \nError: #{err}")
     end
   end
 end
