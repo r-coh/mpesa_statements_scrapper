@@ -2,7 +2,7 @@ defmodule StatementsReader.Utils do
   require Logger
   alias StatementsReader.Utils
 
-  defp log_return(any, acc \\ nil) do
+  defp log_return(any, acc) do
     Logger.error(
       "[Error] matching, encountered line: \n\tGot: #{inspect(any, pretty: true)}\n\n\tAcc: #{inspect(acc, pretty: true)}"
     )

@@ -4,11 +4,13 @@ defmodule StatementsReader.Statements do
 
   @password System.get_env("PDF_STATEMENT_PASSWORD", "29960718")
 
-  def read_statement(path) do
+  def read_statement(path, opts \\ []) do
     read_pdf = fn ->
+      password = opts[:password] || @password
+
       System.cmd(
         "pdftotext",
-        ~w[-raw #{Path.basename(path)} -opw #{@password} -],
+        ~w[-raw #{Path.basename(path)} -opw #{password} -],
         cd: Path.dirname(path)
       )
     end
@@ -78,5 +80,59 @@ defmodule StatementsReader.Statements do
     |> Stream.map(&Utils.map_detail(&1))
     |> Enum.map(&Utils.parse_statement_detail_transaction_meta(&1))
     |> (&%{statement | data: &1}).()
+  end
+
+  def file_name(%Statement{
+        info: %{
+          end_date: endd,
+          msisdn: msisdn,
+          start_date: start,
+          username: name
+        }
+      }) do
+    String.replace("#{name} #{msisdn} mpesa_statements_#{start}-#{endd}.json", " ", "_")
+  end
+
+  @default_export_path ~s(./Documents/mpesa_statements_exports)
+  @spec export_to_json(Statement.t(), list(Statement.t())) :: {:ok, Path.t()}
+  def export_to_json(statement, path \\ @default_export_path)
+
+  def export_to_json(%Statement{state: :formatted, valid?: true, data: data} = statement, path) do
+    path = path <> "/" <> file_name(statement)
+    path = Path.expand(path)
+    data |> Jason.encode!() |> (&File.write!(path, &1)).()
+    {:ok, Path.expand(path)}
+  end
+
+  def export_to_json([%Statement{} | _] = statements, path) do
+    path =
+      path
+      |> File.dir?()
+      |> case do
+        true -> path
+        false -> path |> File.mkdir_p!() |> (fn _ -> path end).()
+      end
+
+    dest = path <> "/" <> "mpesa_statements_#{System.monotonic_time(:second) * -1}.json"
+
+    {:ok, file} =
+      dest
+      |> File.open([:read, :append])
+      |> case do
+        {:ok, _} = res ->
+          res
+
+        {:error, :enoent} ->
+          File.touch!(dest)
+          export_to_json(statements, path)
+      end
+
+    statements
+    |> Enum.map(& &1.data)
+    |> List.flatten()
+    |> Jason.encode!()
+    |> (&IO.write(file, &1)).()
+
+    {File.close(file), Path.expand(dest)}
   end
 end
