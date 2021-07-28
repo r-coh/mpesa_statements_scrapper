@@ -7,6 +7,7 @@ defmodule StatementsReader.MixProject do
       version: "0.1.0",
       elixir: "~> 1.11",
       start_permanent: Mix.env() == :prod,
+      escript: escript(),
       deps: deps()
     ]
   end
@@ -22,5 +23,10 @@ defmodule StatementsReader.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [{:jason, "~> 1.2"}]
+  end
+
+  # Run "mix help escript" to learn about escript.
+  defp escript do
+    [main_module: StatementsReader.CLI, name: :xpesa_parser]
   end
 end

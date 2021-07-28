@@ -2,7 +2,7 @@ defmodule StatementsReader.Statements do
   alias StatementsReader.Statement
   alias StatementsReader.Utils
 
-  @password System.get_env("PDF_STATEMENT_PASSWORD", "29960718")
+  @password System.get_env("PDF_STATEMENT_PASSWORD")
 
   def read_statement(path, opts \\ []) do
     read_pdf = fn ->
@@ -93,27 +93,38 @@ defmodule StatementsReader.Statements do
     String.replace("#{name} #{msisdn} mpesa_statements_#{start}-#{endd}.json", " ", "_")
   end
 
-  @default_export_path ~s(./Documents/mpesa_statements_exports)
+  @default_export_path File.cwd!()
   @spec export_to_json(Statement.t(), list(Statement.t())) :: {:ok, Path.t()}
   def export_to_json(statement, path \\ @default_export_path)
 
   def export_to_json(%Statement{state: :formatted, valid?: true, data: data} = statement, path) do
-    path = path <> "/" <> file_name(statement)
-    path = Path.expand(path)
-    data |> Jason.encode!() |> (&File.write!(path, &1)).()
-    {:ok, Path.expand(path)}
-  end
-
-  def export_to_json([%Statement{} | _] = statements, path) do
     path =
       path
+      |> Path.expand()
+      |> Kernel.<>("/mpesa_statements_exports/")
       |> File.dir?()
       |> case do
         true -> path
         false -> path |> File.mkdir_p!() |> (fn _ -> path end).()
       end
 
-    dest = path <> "/" <> "mpesa_statements_#{System.monotonic_time(:second) * -1}.json"
+    dest = path <> file_name(statement)
+    data |> Jason.encode!() |> (&File.write!(dest, &1)).()
+    {:ok, dest}
+  end
+
+  def export_to_json([%Statement{} | _] = statements, path) do
+    path =
+      path
+      |> Path.expand()
+      |> Kernel.<>("/mpesa_statements_exports/")
+      |> File.dir?()
+      |> case do
+        true -> path
+        false -> path |> File.mkdir_p!() |> (fn _ -> path end).()
+      end
+
+    dest = path <> "mpesa_statement_export_#{System.monotonic_time(:second) * -1}.json"
 
     {:ok, file} =
       dest
@@ -133,6 +144,6 @@ defmodule StatementsReader.Statements do
     |> Jason.encode!()
     |> (&IO.write(file, &1)).()
 
-    {File.close(file), Path.expand(dest)}
+    {File.close(file), dest}
   end
 end
