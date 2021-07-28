@@ -1,5 +1,6 @@
 defmodule StatementsReader.Statement do
   @enforce_keys [:raw_data, :valid?, :state]
+  @derive {Jason.Encoder, only: [:info, :summary, :data, :page]}
   defstruct [:raw_data, :info, :summary, :data, :valid?, :state, :page]
 end
 
@@ -26,12 +27,15 @@ defimpl CRUD, for: Map do
 
   def clean(%StatementsReader.Statement{valid?: true} = statmnt),
     do: %{statmnt | state: :cleaned}
+
+  def format(%StatementsReader.Statement{} = d), do: d
 end
 
 defimpl CRUD, for: Any do
   def new(data), do: %StatementsReader.Statement{raw_data: data, valid?: false, state: :new}
   def update(%StatementsReader.Statement{}, _map), do: raise("Unsupported!")
   def clean(%StatementsReader.Statement{} = d), do: d
+  def format(%StatementsReader.Statement{} = d), do: d
 end
 
 defimpl CRUD, for: StatementsReader.Statement do
