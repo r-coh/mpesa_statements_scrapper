@@ -310,7 +310,7 @@ defmodule StatementsReader.Utils do
     case opts[:format] do
       :sql -> {:ok, SQL.encode!(data)}
       :csv -> {:ok, CSV.encode!(data)}
-      :excel -> {:ok, Excel.encode!(data)}
+      :xlsx -> {:ok, Excel.encode!(data)}
       _ -> {:ok, Jason.encode!(data)}
     end
   rescue
@@ -318,7 +318,14 @@ defmodule StatementsReader.Utils do
       {:error, "Failed to encode data: #{inspect(any, pretty: true)}"}
   end
 
-  def write_to_file(data, opts \\ []) when is_bitstring(data) do
+  def write_to_file(_data, opts \\ [])
+
+  def write_to_file(%Elixlsx.Workbook{} = data, opts) do
+    path = opts[:file]
+    Elixlsx.write_to(data, path)
+  end
+
+  def write_to_file(data, opts) when is_bitstring(data) do
     path = opts[:file]
     File.write!(path, data)
   end

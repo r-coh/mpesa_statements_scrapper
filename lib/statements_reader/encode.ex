@@ -17,3 +17,20 @@ defmodule CSV do
     end
   end
 end
+
+defmodule Excel do
+  alias Elixlsx.{Workbook, Sheet}
+
+  def encode!(data) when is_list(data) do
+    header = data |> hd |> Map.keys() |> Enum.map(&(&1 |> to_string() |> String.upcase()))
+
+    rows =
+      data
+      |> Enum.map(fn i -> i |> Enum.reduce([], fn {_, v}, acc -> acc ++ [stringify(v)] end) end)
+
+    %Workbook{sheets: [%Sheet{name: "Mpesa statements extracted.", rows: [header] ++ rows}]}
+  end
+
+  defp stringify(data) when is_atom(data), do: to_string(data)
+  defp stringify(data), do: data
+end

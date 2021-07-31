@@ -22,7 +22,7 @@ defmodule StatementsReader.MixProject do
 
   # Run "mix help deps" to learn about dependencies.
   defp deps do
-    [{:jason, "~> 1.2"}]
+    [{:jason, "~> 1.2"}, {:elixlsx, "~> 0.4.2"}]
   end
 
   # Run "mix help escript" to learn about escript.
