@@ -189,7 +189,7 @@ defmodule StatementsReader.Utils do
     end
 
     type = fn line ->
-      ~r/(Payment)|\s(Purchase)|(Buy)|(Transfer)\sto|\b\s(Withdrawal)|(Deposit)|(received)|\s(Charge)|(Send).+!Charge|(Pay\sBill\s)Online|(Transfer)\sof\sfunds\sto|(Pay\sBill)\s[a-z]|\s(Reversal)\s|(OverDraft)\s|(Fuliza)\s|(Shwari)\s|(Loan\sRepayment)\s/
+      ~r/(Payment)|\s(Purchase)|(Buy)|(Transfer)\sto|\b\s(Withdrawal)|(Deposit)|(received)|\s(Charge)|(Send).+!Charge|(Pay\sBill\s)Online|(Transfer)\sof\sfunds\sto|(Pay\sBill)\s[a-z]|\s(Reversal)\s|(OverDraft)\s|(Fuliza)\s|(M-Shwari)\s|(Loan\sRepayment)\s/
       |> Regex.run(line)
       |> case do
         [_ | type] ->
@@ -197,6 +197,7 @@ defmodule StatementsReader.Utils do
           |> List.last()
           |> String.trim()
           |> String.replace(" ", "_")
+          |> String.replace("-", "_")
           |> String.downcase()
           |> String.to_atom()
 
@@ -282,5 +283,74 @@ defmodule StatementsReader.Utils do
       {err, err_code} ->
         raise("Failed to filter files, encountered: code #{err_code}, \nError: #{err}")
     end
+  end
+
+  @password System.get_env("PDF_STATEMENT_PASSWORD")
+
+  def read_pdf(path, opts \\ []) do
+    password = opts[:password] || @password
+
+    "pdftotext"
+    |> System.cmd(
+      ~w[-raw #{Path.basename(path)} -opw #{password} -],
+      cd: Path.dirname(path)
+    )
+    |> case do
+      {pdf_as_text, 0} ->
+        pdf_as_text
+        |> String.split("\n")
+        |> (&{:ok, &1}).()
+
+      any ->
+        {:error, "Failed to read file: #{path}\n#{any}"}
+    end
+  end
+
+  def prepare_export_data(data, opts \\ []) when is_list(data) do
+    case opts[:format] do
+      :sql -> {:ok, SQL.encode!(data)}
+      :csv -> {:ok, CSV.encode!(data)}
+      :excel -> {:ok, Excel.encode!(data)}
+      _ -> {:ok, Jason.encode!(data)}
+    end
+  rescue
+    any ->
+      {:error, "Failed to encode data: #{inspect(any, pretty: true)}"}
+  end
+
+  def write_to_file(data, opts \\ []) when is_bitstring(data) do
+    path = opts[:file]
+    File.write!(path, data)
+  end
+
+  def prepare_file(opts \\ [output: File.cwd!()]) do
+    verify_dir = fn path ->
+      path
+      |> File.dir?()
+      |> case do
+        true -> path
+        false -> path |> File.mkdir_p!() |> (fn _ -> path end).()
+      end
+    end
+
+    verify_file = fn path ->
+      path
+      |> File.stat()
+      |> case do
+        {:ok, _} -> path
+        {:error, :enoent} -> path |> File.touch!() |> (fn _ -> path end).()
+      end
+    end
+
+    opts = if is_nil(opts[:output]), do: Keyword.put(opts, :output, File.cwd!()), else: opts
+
+    opts[:output]
+    |> Path.expand()
+    |> Kernel.<>("/mpesa_statements_exports/")
+    |> verify_dir.()
+    |> Kernel.<>(
+      "#{opts[:filename] || 'mpesa_statement_export_#{System.monotonic_time(:second) * -1}.json'}"
+    )
+    |> verify_file.()
   end
 end
