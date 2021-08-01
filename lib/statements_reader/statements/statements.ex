@@ -2,28 +2,12 @@ defmodule StatementsReader.Statements do
   alias StatementsReader.Statement
   alias StatementsReader.Utils
 
-  @password System.get_env("PDF_STATEMENT_PASSWORD")
-
   def read_statement(path, opts \\ []) do
-    read_pdf = fn ->
-      password = opts[:password] || @password
-
-      System.cmd(
-        "pdftotext",
-        ~w[-raw #{Path.basename(path)} -opw #{password} -],
-        cd: Path.dirname(path)
-      )
-    end
-
-    read_pdf.()
+    path
+    |> Utils.read_pdf(opts)
     |> case do
-      {pdf_as_text, _} ->
-        pdf_as_text
-        |> String.split("\n")
-        |> (&CRUD.new(%{raw_data: &1})).()
-
-      any ->
-        raise("Failed to read file: #{path}\n#{any}")
+      {:ok, raw_content} -> CRUD.new(%{raw_data: raw_content})
+      {:error, err} -> raise(err)
     end
   end
 
@@ -82,68 +66,50 @@ defmodule StatementsReader.Statements do
     |> (&%{statement | data: &1}).()
   end
 
-  def file_name(%Statement{
-        info: %{
-          end_date: endd,
-          msisdn: msisdn,
-          start_date: start,
-          username: name
-        }
-      }) do
-    String.replace("#{name} #{msisdn} mpesa_statements_#{start}-#{endd}.json", " ", "_")
+  def file_name(
+        %Statement{
+          info: %{
+            end_date: endd,
+            msisdn: msisdn,
+            start_date: start,
+            username: name
+          }
+        },
+        opts \\ [format: :json]
+      ) do
+    String.replace(
+      "#{name}_#{msisdn}mpesa_statements_#{start}-#{endd}.#{to_string(opts[:format])}",
+      " ",
+      "_"
+    )
   end
 
-  @default_export_path File.cwd!()
-  @spec export_to_json(Statement.t(), list(Statement.t())) :: {:ok, Path.t()}
-  def export_to_json(statement, path \\ @default_export_path)
+  def export_statements(_statments, opts \\ [])
 
-  def export_to_json(%Statement{state: :formatted, valid?: true, data: data} = statement, path) do
-    path =
-      path
-      |> Path.expand()
-      |> Kernel.<>("/mpesa_statements_exports/")
-      |> File.dir?()
-      |> case do
-        true -> path
-        false -> path |> File.mkdir_p!() |> (fn _ -> path end).()
-      end
-
-    dest = path <> file_name(statement)
-    data |> Jason.encode!() |> (&File.write!(dest, &1)).()
-    {:ok, dest}
+  def export_statements(
+        %Statement{data: data, valid?: true, state: :formatted} = statement,
+        opts
+      ) do
+    {:ok, data} = Utils.prepare_export_data(data, opts)
+    opts = Keyword.put(opts, :filename, file_name(statement))
+    file = Utils.prepare_file(opts)
+    opts = Keyword.merge(opts, file: file)
+    {Utils.write_to_file(data, opts), file}
   end
 
-  def export_to_json([%Statement{} | _] = statements, path) do
-    path =
-      path
-      |> Path.expand()
-      |> Kernel.<>("/mpesa_statements_exports/")
-      |> File.dir?()
-      |> case do
-        true -> path
-        false -> path |> File.mkdir_p!() |> (fn _ -> path end).()
-      end
+  def export_statements([%Statement{} | _] = statements, opts) do
+    {:ok, data} =
+      statements
+      |> Enum.map(& &1.data)
+      |> List.flatten()
+      |> Utils.prepare_export_data(opts)
 
-    dest = path <> "mpesa_statement_export_#{System.monotonic_time(:second) * -1}.json"
+    time = System.monotonic_time(:millisecond) * -1
+    filename = "mpesa_statement_export_#{time}.#{to_string(opts[:format])}"
 
-    {:ok, file} =
-      dest
-      |> File.open([:read, :append])
-      |> case do
-        {:ok, _} = res ->
-          res
-
-        {:error, :enoent} ->
-          File.touch!(dest)
-          export_to_json(statements, path)
-      end
-
-    statements
-    |> Enum.map(& &1.data)
-    |> List.flatten()
-    |> Jason.encode!()
-    |> (&IO.write(file, &1)).()
-
-    {File.close(file), dest}
+    opts = Keyword.put(opts, :filename, filename)
+    file = Utils.prepare_file(opts)
+    opts = Keyword.merge(opts, file: file)
+    {Utils.write_to_file(data, opts), file}
   end
 end

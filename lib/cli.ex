@@ -28,6 +28,7 @@ defmodule StatementsReader.CLI do
         password: :string,
         json: :boolean,
         sql: :boolean,
+        csv: :boolean,
         output: :string
       ],
       aliases: [
@@ -37,10 +38,18 @@ defmodule StatementsReader.CLI do
       ]
     ]
 
+    update_opts = fn opts, k, v ->
+      output = opts[:output] || File.cwd!()
+
+      opts
+      |> Keyword.put(:output, output)
+      |> Keyword.put(k, v)
+    end
+
     params
     |> OptionParser.parse(opts)
     |> case do
-      {opts, [path], _} -> {:process, Keyword.put(opts, :src, path)}
+      {opts, [path], _} -> {:process, update_opts.(opts, :src, path)}
       {[help: true], _, _} -> :help
       _ -> :help
     end
@@ -65,13 +74,13 @@ defmodule StatementsReader.CLI do
     EXPORT MPESA STATEMENTS TO JSON or SQL
     -------------------------------------------
     Syntax
-      `xpesa_parser /path/to/mpesa/statements --password pdf_password [--json, --sql] [--output /path/to/output/dir]`
+      `xpesa_parser /path/to/mpesa/statements --password pdf_password [--json, --sql, --csv, --excel] [--output /path/to/output/dir]`
 
     Run the following commands
     to extract statements to json or sql file.
           `xpesa_parser /path/to/mpesa/statement -p password --json -o /output/dir`
           `xpesa_parser /path/to/mpesa/statement -p password --sql -o /output/dir`
-          `xpesa_parser /path/to/mpesa/statement -p password --json --sql -o /output/dir`
+          `xpesa_parser /path/to/mpesa/statement -p password --json --sql -o /output/dir` # creates both exports
           `xpesa_parser /path/to/mpesa/statement -p password --json` # current dir is implied as output
           `xpesa_parser /path/to/mpesa/statement -p password` # json output and current working dir is implied
 
@@ -80,23 +89,13 @@ defmodule StatementsReader.CLI do
   end
 
   def process({:process, opts}) do
-    password = opts[:password]
-    src = opts[:src]
-    # to_json? = opts[:json] || true
-    # to_sql? = opts[:sql] || false
-    output = opts[:output]
-
-    # Set password
-    System.put_env("PDF_STATEMENT_PASSWORD", password)
-
-    src
+    opts[:src]
     |> StatementsReader.read_statements(opts)
     |> StatementsReader.prepare_statements()
     |> (fn statements ->
-          [
-            {StatementsReader.Statements, :export_to_json, [statements, output]}
-            # {StatementsReader.Statements, :export_to_sql, [statements, output]}
-          ]
+          opts
+          |> exports()
+          |> Enum.map(&{StatementsReader.Statements, :export_statements, [statements, &1]})
           |> Enum.map(fn {m, f, a} -> Task.async(m, f, a) end)
           |> Task.yield_many()
           |> Enum.map(fn {task, res} -> res || Task.shutdown(task, :brutal_kill) end)
@@ -107,11 +106,35 @@ defmodule StatementsReader.CLI do
           EXPORTED MPESA STATEMENTS
           -------------------------------------------
           Results at
-              #{Enum.join(paths, "\n")}
+                  #{Enum.join(paths, "\n\t")}
 
           -------------------------------------------
           """
         end).()
     |> IO.puts()
+  end
+
+  defp exports(opts) do
+    to_json? = {:json, opts[:json] || false}
+    to_sql? = {:sql, opts[:sql] || false}
+    to_csv? = {:csv, opts[:csv] || false}
+    to_excel? = {:xlsx, opts[:excel] || false}
+
+    [to_csv?, to_excel?, to_sql?, to_json?]
+    |> check_export_options()
+    |> Enum.reduce([], fn
+      {format, true}, acc -> acc ++ [[format: format]]
+      {_, false}, acc -> acc
+    end)
+    |> Enum.map(&Keyword.merge(opts, &1))
+  end
+
+  defp check_export_options(options) do
+    options
+    |> Enum.all?(fn {_, state} -> !state end)
+    |> case do
+      true -> (options -- [{:json, false}]) ++ [{:json, true}]
+      false -> options
+    end
   end
 end
