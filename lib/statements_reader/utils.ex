@@ -307,8 +307,10 @@ defmodule StatementsReader.Utils do
   end
 
   def prepare_export_data(data, opts \\ []) when is_list(data) do
+    sql_opts = [name: "mpesa_statmenets_transactions", opts: [account_name: [:text]]]
+
     case opts[:format] do
-      :sql -> {:ok, SQL.encode!(data)}
+      :sql -> {:ok, SQL.encode!(data, sql_opts)}
       :csv -> {:ok, CSV.encode!(data)}
       :xlsx -> {:ok, Excel.encode!(data)}
       _ -> {:ok, Jason.encode!(data)}

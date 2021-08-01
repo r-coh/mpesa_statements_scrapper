@@ -91,8 +91,9 @@ defmodule StatementsReader.Statements do
         opts
       ) do
     {:ok, data} = Utils.prepare_export_data(data, opts)
+    opts = Keyword.put(opts, :filename, file_name(statement))
     file = Utils.prepare_file(opts)
-    opts = Keyword.merge(opts, filename: file_name(statement), file: file)
+    opts = Keyword.merge(opts, file: file)
     {Utils.write_to_file(data, opts), file}
   end
 
@@ -103,12 +104,12 @@ defmodule StatementsReader.Statements do
       |> List.flatten()
       |> Utils.prepare_export_data(opts)
 
-    filename =
-      "mpesa_statement_export_#{System.monotonic_time(:second) * -1}.#{to_string(opts[:format])}"
+    time = System.monotonic_time(:millisecond) * -1
+    filename = "mpesa_statement_export_#{time}.#{to_string(opts[:format])}"
 
     opts = Keyword.put(opts, :filename, filename)
     file = Utils.prepare_file(opts)
-    opts = Keyword.merge(opts, filename: filename, file: file)
+    opts = Keyword.merge(opts, file: file)
     {Utils.write_to_file(data, opts), file}
   end
 end

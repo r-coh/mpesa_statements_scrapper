@@ -74,13 +74,13 @@ defmodule StatementsReader.CLI do
     EXPORT MPESA STATEMENTS TO JSON or SQL
     -------------------------------------------
     Syntax
-      `xpesa_parser /path/to/mpesa/statements --password pdf_password [--json, --sql] [--output /path/to/output/dir]`
+      `xpesa_parser /path/to/mpesa/statements --password pdf_password [--json, --sql, --csv, --excel] [--output /path/to/output/dir]`
 
     Run the following commands
     to extract statements to json or sql file.
           `xpesa_parser /path/to/mpesa/statement -p password --json -o /output/dir`
           `xpesa_parser /path/to/mpesa/statement -p password --sql -o /output/dir`
-          `xpesa_parser /path/to/mpesa/statement -p password --json --sql -o /output/dir`
+          `xpesa_parser /path/to/mpesa/statement -p password --json --sql -o /output/dir` # creates both exports
           `xpesa_parser /path/to/mpesa/statement -p password --json` # current dir is implied as output
           `xpesa_parser /path/to/mpesa/statement -p password` # json output and current working dir is implied
 
@@ -115,16 +115,26 @@ defmodule StatementsReader.CLI do
   end
 
   defp exports(opts) do
-    to_json? = {:json, opts[:json] || true}
+    to_json? = {:json, opts[:json] || false}
     to_sql? = {:sql, opts[:sql] || false}
     to_csv? = {:csv, opts[:csv] || false}
     to_excel? = {:xlsx, opts[:excel] || false}
 
     [to_csv?, to_excel?, to_sql?, to_json?]
+    |> check_export_options()
     |> Enum.reduce([], fn
       {format, true}, acc -> acc ++ [[format: format]]
       {_, false}, acc -> acc
     end)
     |> Enum.map(&Keyword.merge(opts, &1))
+  end
+
+  defp check_export_options(options) do
+    options
+    |> Enum.all?(fn {_, state} -> !state end)
+    |> case do
+      true -> (options -- [{:json, false}]) ++ [{:json, true}]
+      false -> options
+    end
   end
 end
